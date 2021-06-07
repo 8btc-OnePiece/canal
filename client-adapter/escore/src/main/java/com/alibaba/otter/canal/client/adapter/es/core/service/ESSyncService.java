@@ -4,6 +4,7 @@ import java.util.*;
 
 import javax.sql.DataSource;
 
+import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastsql.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.otter.canal.client.adapter.es.core.config.SqlParser;
 import org.slf4j.Logger;
@@ -622,61 +623,90 @@ public class ESSyncService {
         }
         Util.sqlRS(ds, sql.toString(), values, rs -> {
             try {
-                while (rs.next()) {
-                    Map<String, Object> esFieldData = new LinkedHashMap<>();
-
-                    for (FieldItem fieldItem : tableItem.getRelationSelectFieldItems()) {
-                        if (old != null) {
-                            out: for (FieldItem fieldItem1 : tableItem.getSubQueryFields()) {
-                                for (ColumnItem columnItem0 : fieldItem.getColumnItems()) {
-                                    if (fieldItem1.getFieldName().equals(columnItem0.getColumnName()))
-                                        for (ColumnItem columnItem : fieldItem1.getColumnItems()) {
-                                            if (old.containsKey(columnItem.getColumnName())) {
-                                                Object val = esTemplate.getValFromRS(mapping,
-                                                    rs,
-                                                    fieldItem.getFieldName(),
-                                                    fieldItem.getColumn().getColumnName());
-                                                esFieldData.put(Util.cleanColumn(fieldItem.getFieldName()), val);
-                                                break out;
+                Map<String, Object> esFieldData = new LinkedHashMap<>();
+                Map<String, Object> paramsTmp = new LinkedHashMap<>();
+                if (rs.next()) {
+                    do {
+                        for (FieldItem fieldItem : tableItem.getRelationSelectFieldItems()) {
+                            if (old != null) {
+                                out: for (FieldItem fieldItem1 : tableItem.getSubQueryFields()) {
+                                    for (ColumnItem columnItem0 : fieldItem.getColumnItems()) {
+                                        if (fieldItem1.getFieldName().equals(columnItem0.getColumnName()))
+                                            for (ColumnItem columnItem : fieldItem1.getColumnItems()) {
+                                                if (old.containsKey(columnItem.getColumnName())) {
+                                                    Object val = esTemplate.getValFromRS(mapping,
+                                                            rs,
+                                                            fieldItem.getFieldName(),
+                                                            fieldItem.getColumn().getColumnName());
+                                                    esFieldData.put(Util.cleanColumn(fieldItem.getFieldName()), val);
+                                                    break out;
+                                                }
                                             }
-                                        }
+                                    }
+                                }
+                            } else {
+                                Object val = esTemplate.getValFromRS(mapping,
+                                        rs,
+                                        fieldItem.getFieldName(),
+                                        fieldItem.getColumn().getColumnName());
+                                esFieldData.put(Util.cleanColumn(fieldItem.getFieldName()), val);
+                            }
+                        }
+
+                        for (Map.Entry<FieldItem, List<FieldItem>> entry : tableItem.getRelationTableFields().entrySet()) {
+                            for (FieldItem fieldItem : entry.getValue()) {
+                                if (fieldItem.getColumnItems().size() == 1) {
+                                    Object value = esTemplate.getValFromRS(mapping,
+                                            rs,
+                                            fieldItem.getFieldName(),
+                                            entry.getKey().getColumn().getColumnName());
+                                    String fieldName = fieldItem.getFieldName();
+                                    // 判断是否是主键
+                                    if (fieldName.equals(mapping.get_id())) {
+                                        fieldName = "_id";
+                                    }
+                                    paramsTmp.put(fieldName, value);
                                 }
                             }
-                        } else {
-                            Object val = esTemplate.getValFromRS(mapping,
-                                rs,
-                                fieldItem.getFieldName(),
-                                fieldItem.getColumn().getColumnName());
-                            esFieldData.put(Util.cleanColumn(fieldItem.getFieldName()), val);
                         }
+                    } while (rs.next());
+                } else {
+                    for (FieldItem fieldItem : tableItem.getRelationSelectFieldItems()) {
+                        esFieldData.put(Util.cleanColumn(fieldItem.getFieldName()), null);
                     }
 
-                    Map<String, Object> paramsTmp = new LinkedHashMap<>();
                     for (Map.Entry<FieldItem, List<FieldItem>> entry : tableItem.getRelationTableFields().entrySet()) {
-                        for (FieldItem fieldItem : entry.getValue()) {
-                            if (fieldItem.getColumnItems().size() == 1) {
-                                Object value = esTemplate.getValFromRS(mapping,
-                                    rs,
-                                    fieldItem.getFieldName(),
-                                    entry.getKey().getColumn().getColumnName());
-                                String fieldName = fieldItem.getFieldName();
+                        FieldItem relationTableKey = entry.getKey();
+                        for (FieldItem relationTableValue : entry.getValue()) {
+                            if (relationTableValue.getColumnItems().size() == 1) {
+                                String fieldName = relationTableValue.getFieldName();
                                 // 判断是否是主键
                                 if (fieldName.equals(mapping.get_id())) {
                                     fieldName = "_id";
                                 }
-                                paramsTmp.put(fieldName, value);
+                                Object fieldValue = data.get(relationTableKey.getFieldName());
+                                paramsTmp.put(fieldName, fieldValue);
                             }
                         }
                     }
+                }
 
-                    if (logger.isDebugEnabled()) {
-                        logger.trace("Join table update es index by query sql, destination:{}, table: {}, index: {}",
+                if (logger.isDebugEnabled()) {
+                    logger.trace("Join table update es index by query sql, destination:{}, table: {}, index: {}",
                             config.getDestination(),
                             dml.getTable(),
                             mapping.get_index());
-                    }
-                    esTemplate.updateByQuery(config, paramsTmp, esFieldData);
                 }
+//                // 为删除nested类型下字段添加的撇脚处理
+//                for (Map.Entry<String, Object> entry : esFieldData.entrySet()) {
+//                    Map<String, Object> esFieldExpectNull = new LinkedHashMap<>();
+//                    Map<String, String> objFields = mapping.getObjFields();
+//                    if ("object".equals(objFields.get(entry.getKey())) && entry.getValue() instanceof JSONObject) {
+//                        esFieldExpectNull.put(entry.getKey(), null);
+//                        esTemplate.updateByQuery(config, paramsTmp, esFieldExpectNull);
+//                    }
+//                }
+                esTemplate.updateByQuery(config, paramsTmp, esFieldData);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
