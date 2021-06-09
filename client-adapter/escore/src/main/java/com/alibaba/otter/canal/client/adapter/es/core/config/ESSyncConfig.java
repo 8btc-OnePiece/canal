@@ -15,13 +15,15 @@ import com.alibaba.otter.canal.client.adapter.support.AdapterConfig;
  */
 public class ESSyncConfig implements AdapterConfig {
 
-    private String    dataSourceKey;    // 数据源key
+    private String    dataSourceKey;        // 数据源key
 
-    private String    outerAdapterKey;  // adapter key
+    private String    outerAdapterKey;      // adapter key
 
-    private String    groupId;          // group id
+    private String    groupId;              // group id
 
-    private String    destination;      // canal destination
+    private String    destination;          // canal destination
+
+    private String    syncMode = "normal";  // 同步模式 为simple时主表insert的数据会直接通过DML同步至es（没有复杂字段查询）
 
     private ESMapping esMapping;
 
@@ -72,6 +74,14 @@ public class ESSyncConfig implements AdapterConfig {
 
     public void setDestination(String destination) {
         this.destination = destination;
+    }
+
+    public String getSyncMode() {
+        return syncMode;
+    }
+
+    public void setSyncMode(String syncMode) {
+        this.syncMode = syncMode;
     }
 
     public ESMapping getEsMapping() {

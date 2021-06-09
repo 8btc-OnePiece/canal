@@ -4,7 +4,6 @@ import java.util.*;
 
 import javax.sql.DataSource;
 
-import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastsql.sql.dialect.mysql.ast.statement.MySqlSelectQueryBlock;
 import com.alibaba.otter.canal.client.adapter.es.core.config.SqlParser;
 import org.slf4j.Logger;
@@ -135,9 +134,14 @@ public class ESSyncService {
                 // ------单表 & 所有字段都为简单字段------
                 singleTableSimpleFiledInsert(config, dml, data);
             } else {
-                // ------是主表 查询sql来插入------
+                // 主表的操作
                 if (schemaItem.getMainTable().getTableName().equalsIgnoreCase(dml.getTable())) {
-                    mainTableInsert(config, dml, data);
+                    if ("simple".equals(config.getSyncMode()) && schemaItem.isAllFieldsSimple()) {
+                        // 开启简单同步模式 & 所有字段都为简单字段
+                        singleTableSimpleFiledInsert(config, dml, data);
+                    } else {
+                        mainTableInsert(config, dml, data);
+                    }
                 }
 
                 // 从表的操作
