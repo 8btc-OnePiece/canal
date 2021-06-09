@@ -66,7 +66,11 @@ public class ESSyncUtil {
         } else if ("long".equals(esType)) {
             if (val instanceof Number) {
                 res = ((Number) val).longValue();
-            } else {
+            } else if (val instanceof java.sql.Timestamp){
+                res = ((java.sql.Timestamp) val).getTime() / 1000;
+            } else if (val instanceof Date){
+                res = ((Date) val).getTime() / 1000;
+            }  else {
                 res = Long.parseLong(val.toString());
             }
         } else if ("short".equals(esType)) {
