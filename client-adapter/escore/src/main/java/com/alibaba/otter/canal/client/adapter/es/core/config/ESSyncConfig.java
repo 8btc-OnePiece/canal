@@ -23,7 +23,7 @@ public class ESSyncConfig implements AdapterConfig {
 
     private String    destination;          // canal destination
 
-    private String    syncMode = "normal";  // 同步模式 为simple时主表insert的数据会直接通过DML同步至es（没有复杂字段查询）
+    private String    syncMode = "normal";  // 同步模式 为simple时会减少同步时反查db的操作
 
     private ESMapping esMapping;
 

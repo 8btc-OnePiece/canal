@@ -701,16 +701,12 @@ public class ESSyncService {
                             dml.getTable(),
                             mapping.get_index());
                 }
-//                // 为删除nested类型下字段添加的撇脚处理
-//                for (Map.Entry<String, Object> entry : esFieldData.entrySet()) {
-//                    Map<String, Object> esFieldExpectNull = new LinkedHashMap<>();
-//                    Map<String, String> objFields = mapping.getObjFields();
-//                    if ("object".equals(objFields.get(entry.getKey())) && entry.getValue() instanceof JSONObject) {
-//                        esFieldExpectNull.put(entry.getKey(), null);
-//                        esTemplate.updateByQuery(config, paramsTmp, esFieldExpectNull);
-//                    }
-//                }
-                esTemplate.updateByQuery(config, paramsTmp, esFieldData);
+
+                if ("simple".equals(config.getSyncMode()) && paramsTmp.containsKey("_id")) {
+                    esTemplate.update(config.getMapping(), paramsTmp.get("_id"), esFieldData);
+                } else {
+                    esTemplate.updateByQuery(config, paramsTmp, esFieldData);
+                }
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
